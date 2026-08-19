@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Monitoring Donor Darah</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+
+        .blood-drop-bg {
+            background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+        }
+
+        /* Animasi loading yang elegan */
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #ef4444;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Custom scrollbar untuk tabel riwayat */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+
+        /* Toast Notification CSS */
+        .toast-enter { transform: translateY(100%); opacity: 0; }
+        .toast-enter-active { transform: translateY(0); opacity: 1; transition: all 300ms ease-out; }
+        .toast-exit { transform: translateY(0); opacity: 1; }
+        .toast-exit-active { transform: translateY(100%); opacity: 0; transition: all 300ms ease-in; }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col relative">
+
+    <nav class="bg-white shadow-sm sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 flex items-center gap-2">
+                        <i class="fa-solid fa-droplet text-red-500 text-2xl"></i>
+                        <span class="font-bold text-xl tracking-tight text-slate-800">DonorConnect</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button class="text-slate-500 hover:text-slate-700 transition-colors">
+                        <i class="fa-regular fa-bell text-xl"></i>
+                    </button>
+                    <div class="h-8 w-8 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center overflow-hidden">
+                        <img src="https://i.pravatar.cc/150?img=11" alt="Profil User" class="w-full h-full object-cover">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900" id="user-greeting">Halo, Memuat... 👋</h1>
+                <p class="text-slate-500 mt-1">Ini adalah ringkasan aktivitas donor darah Anda.</p>
+            </div>
+            <div id="eligibility-badge" class="hidden items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition-all duration-300 shadow-sm">
+                <!-- Status kelayakan akan dimuat via JS -->
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <!-- Kartu 1: Total Donor -->
+            <div class="glass-card rounded-2xl p-6 relative overflow-hidden group">
+                <div class="absolute -right-4 -top-4 w-24 h-24 bg-red-50 rounded-full opacity-50 group-hover:scale-110 transition-transform duration-500"></div>
+                <div class="flex items-center gap-4 relative z-10">
+                    <div class="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center text-red-500">
+                        <i class="fa-solid fa-heart-pulse text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-slate-500">Total Donor</p>
+                        <div class="flex items-baseline gap-1">
+                            <h3 class="text-3xl font-bold text-slate-800" id="stat-total-donations">--</h3>
+                            <span class="text-sm font-medium text-slate-500">kali</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kartu 2: Volume Darah -->
+            <div class="glass-card rounded-2xl p-6 relative overflow-hidden group">
+                <div class="absolute -right-4 -top-4 w-24 h-24 bg-blue-50 rounded-full opacity-50 group-hover:scale-110 transition-transform duration-500"></div>
+                <div class="flex items-center gap-4 relative z-10">
+                    <div class="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-500">
+                        <i class="fa-solid fa-flask text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-slate-500">Total Volume Disumbangkan</p>
+                        <div class="flex items-baseline gap-1">
+                            <h3 class="text-3xl font-bold text-slate-800" id="stat-total-volume">--</h3>
+                            <span class="text-sm font-medium text-slate-500">ml</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kartu 3: Golongan Darah -->
+            <div class="glass-card rounded-2xl p-6 blood-drop-bg text-white relative overflow-hidden shadow-lg shadow-red-200">
+                <div class="absolute right-0 top-0 w-32 h-32 bg-white/10 rounded-full -mr-8 -mt-8 blur-sm"></div>
+                <div class="flex justify-between items-start relative z-10">
+                    <div>
+                        <p class="text-sm font-medium text-red-100 mb-1">Golongan Darah</p>
+                        <h3 class="text-4xl font-bold" id="stat-blood-type">--</h3>
+                        <p class="text-xs font-medium text-red-200 mt-2">Dibutuhkan saat ini: <span class="text-white font-semibold">Tinggi</span></p>
+                    </div>
+                    <i class="fa-solid fa-droplet text-4xl text-white/80"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Kolom Kiri: Riwayat Donor -->
+            <div class="lg:col-span-2 space-y-6">
+                <div class="glass-card rounded-2xl p-6 flex flex-col h-full">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-bold text-slate-800">Riwayat Donor Terakhir</h2>
+                        <button class="text-sm font-medium text-red-500 hover:text-red-700 transition-colors flex items-center gap-1">
+                            Lihat Semua <i class="fa-solid fa-arrow-right text-xs"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="overflow-x-auto flex-grow">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b border-slate-200 text-sm text-slate-500">
+                                    <th class="pb-3 font-medium px-2">Tanggal</th>
+                                    <th class="pb-3 font-medium px-2">Lokasi</th>
+                                    <th class="pb-3 font-medium px-2 text-right">Volume</th>
+                                    <th class="pb-3 font-medium px-2 text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body" class="text-sm divide-y divide-slate-100">
+                                <tr>
+                                    <td colspan="4" class="py-8 text-center text-slate-400">
+                                        <div class="flex flex-col items-center justify-center gap-2">
+                                            <div class="loader"></div>
+                                            <span>Memuat data dari Server...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kolom Kanan: Jadwal & Grafik -->
+            <div class="space-y-6">
+                <!-- Kartu Jadwal Donor Berikutnya -->
+                <div class="glass-card rounded-2xl p-6 border-t-4 border-t-red-500">
+                    <h2 class="text-lg font-bold text-slate-800 mb-4">Jadwal Selanjutnya</h2>
+                    
+                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-100 mb-4">
+                        <div class="flex items-start gap-3">
+                            <div class="w-10 h-10 rounded-lg bg-white border border-slate-200 shadow-sm flex flex-col items-center justify-center flex-shrink-0">
+                                <span class="text-xs font-bold text-red-500 uppercase" id="next-month">--</span>
+                                <span class="text-lg font-bold text-slate-800 leading-none" id="next-date">--</span>
+                            </div>
+                            <div>
+                                <p class="font-semibold text-slate-800" id="next-event-title">Memuat Jadwal...</p>
+                                <p class="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                                    <i class="fa-regular fa-clock"></i> Tersisa <span id="days-left" class="font-medium text-slate-700">--</span> hari
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button id="btn-schedule" class="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                        Buat Janji Temu
+                    </button>
+                </div>
+
+                <!-- Kartu Chart Kesehatan -->
+                <div class="glass-card rounded-2xl p-6">
+                    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-slate-400"></i> Tren Tekanan Darah
+                    </h2>
+                    <div class="h-48 w-full relative">
+                        <canvas id="healthChart"></canvas>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-4 text-center">Data diambil sebelum proses donor.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-white border-t border-slate-200 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <p class="text-center text-sm text-slate-500">
+                &copy; 2026 DonorConnect App. Didukung oleh Google Apps Script & Sheets.
+            </p>
+        </div>
+    </footer>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-[60] flex flex-col gap-2"></div>
+
+    <script>
+        
+        // ==========================================
+        // KONFIGURASI GLOBAL
+        // ==========================================
+        
+        // UBAH KE `false` JIKA INGIN TERHUBUNG KE GOOGLE APPS SCRIPT ASLI
+        const IS_PREVIEW = false; 
+        
+        // GANTI DENGAN URL WEB APP GAS ANDA! (Bukan ID Spreadsheet)
+        // Contoh: "https://script.google.com/macros/s/AKfycbxyz.../exec"
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbxi5VhUXpRhNvmKuguOddKd5n0OsqbYecXE_4uSEY07LcmscsuiBresGR0Fka9ywceI/exec"; 
+        
+        const DONATION_INTERVAL_DAYS = 60; // Standar PMI
+        
+        // ==========================================
+        // API GATEWAY & MOCK ENGINE
+        // ==========================================
+        
+        async function apiCall(action, payload = {}) {
+            if (IS_PREVIEW) {
+                return await handleMockAPI(action, payload);
+            }
+            try {
+                const res = await fetch(GAS_URL, {
+                    method: "POST",
+                    redirect: "follow",
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify({ action, payload })
+                });
+                return await res.json();
+            } catch (err) {
+                return { status: "error", message: "Koneksi GAS Gagal: " + err.message };
+            }
+        }
+
+        async function handleMockAPI(action, payload) {
+            // Simulasi delay jaringan
+            await new Promise(resolve => setTimeout(resolve, 800));
+            
+            if (action === 'getDashboardData') {
+                return {
+                    status: 'success',
+                    message: 'Data berhasil dimuat',
+                    data: {
+                        userProfile: {
+                            name: "Budi Santoso",
+                            bloodType: "O+",
+                            lastDonationDate: "2026-05-15"
+                        },
+                        donationHistory: [
+                            { date: "2026-05-15", location: "PMI Cab. Karang Baru", volume: 350, systole: 120, diastole: 80, status: "Berhasil" },
+                            { date: "2026-02-10", location: "Mobil Donor Alun-alun", volume: 350, systole: 118, diastole: 78, status: "Berhasil" },
+                            { date: "2025-11-05", location: "RSUD Aceh Tamiang", volume: 350, systole: 122, diastole: 82, status: "Berhasil" },
+                            { date: "2025-08-01", location: "PMI Cab. Karang Baru", volume: 0, systole: 145, diastole: 95, status: "Gagal (Tensi Tinggi)" },
+                            { date: "2025-04-20", location: "PMI Cab. Karang Baru", volume: 350, systole: 115, diastole: 75, status: "Berhasil" }
+                        ]
+                    }
+                };
+            }
+            
+            return { status: 'error', message: 'Action tidak dikenali oleh Mock Engine' };
+        }
+
+        // ==========================================
+        // UI UTILITIES
+        // ==========================================
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let bgClass = 'bg-slate-800';
+            let icon = '<i class="fa-solid fa-circle-info text-blue-400"></i>';
+            
+            if (type === 'success') {
+                icon = '<i class="fa-solid fa-circle-check text-green-400"></i>';
+            } else if (type === 'error') {
+                bgClass = 'bg-red-900';
+                icon = '<i class="fa-solid fa-circle-exclamation text-red-400"></i>';
+            }
+
+            toast.className = `${bgClass} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 text-sm font-medium toast-enter toast-enter-active`;
+            toast.innerHTML = `${icon} <span>${message}</span>`;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.remove('toast-enter', 'toast-enter-active');
+                toast.classList.add('toast-exit', 'toast-exit-active');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ==========================================
+        // MAIN LOGIC
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', async () => {
+            if(IS_PREVIEW) {
+                showToast('Berjalan dalam Mode Preview (Mock Data)', 'info');
+            }
+            
+            const response = await apiCall('getDashboardData');
+            
+            if (response.status === 'success') {
+                renderDashboardData(response.data);
+                initHealthChart(response.data.donationHistory);
+            } else {
+                const tbody = document.getElementById('history-table-body');
+                tbody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-red-500 font-medium"><i class="fa-solid fa-triangle-exclamation mr-2"></i> ${response.message}</td></tr>`;
+                showToast(response.message, 'error');
+            }
+        });
+
+        function renderDashboardData(data) {
+            const history = data.donationHistory;
+            const profile = data.userProfile;
+            
+            // Hitung statistik
+            const successfulDonations = history.filter(h => h.status === 'Berhasil');
+            const totalDonations = successfulDonations.length;
+            const totalVolume = successfulDonations.reduce((sum, record) => sum + record.volume, 0);
+
+            // Update UI Header & Stats
+            document.getElementById('user-greeting').innerHTML = `Halo, ${profile.name} 👋`;
+            document.getElementById('stat-total-donations').textContent = totalDonations;
+            document.getElementById('stat-total-volume').textContent = totalVolume.toLocaleString();
+            document.getElementById('stat-blood-type').textContent = profile.bloodType;
+
+            // Render Tabel Riwayat
+            const tbody = document.getElementById('history-table-body');
+            tbody.innerHTML = ''; 
+
+            if(history.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-slate-500">Belum ada riwayat donor.</td></tr>`;
+            } else {
+                history.slice(0, 5).forEach(record => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-50 transition-colors group cursor-default';
+                    
+                    const dateObj = new Date(record.date);
+                    const dateFormatted = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+                    
+                    let statusBadge = '';
+                    if (record.status === 'Berhasil') {
+                        statusBadge = `<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20"><i class="fa-solid fa-check mr-1 text-[10px]"></i> ${record.status}</span>`;
+                    } else {
+                        statusBadge = `<span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/10" title="${record.status}"><i class="fa-solid fa-xmark mr-1 text-[10px]"></i> Gagal</span>`;
+                    }
+
+                    tr.innerHTML = `
+                        <td class="py-3 px-2 whitespace-nowrap">
+                            <div class="font-medium text-slate-900 group-hover:text-red-600 transition-colors">${dateFormatted}</div>
+                        </td>
+                        <td class="py-3 px-2">
+                            <div class="text-slate-600 flex items-center gap-2">
+                                <i class="fa-solid fa-location-dot text-slate-300 text-xs"></i> 
+                                <span class="truncate max-w-[150px] sm:max-w-[200px]" title="${record.location}">${record.location}</span>
+                            </div>
+                        </td>
+                        <td class="py-3 px-2 text-right text-slate-700 font-medium">${record.volume > 0 ? record.volume + ' ml' : '-'}</td>
+                        <td class="py-3 px-2 text-center">${statusBadge}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            calculateEligibility(profile.lastDonationDate);
+        }
+
+        function calculateEligibility(lastDonationStr) {
+            const lastDate = new Date(lastDonationStr);
+            const today = new Date('2026-08-20T04:00:35+07:00'); // Sesuai current context
+            
+            const nextEligibleDate = new Date(lastDate);
+            nextEligibleDate.setDate(lastDate.getDate() + DONATION_INTERVAL_DAYS);
+
+            const timeDiff = nextEligibleDate.getTime() - today.getTime();
+            const daysLeft = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+            const badgeElement = document.getElementById('eligibility-badge');
+            const btnSchedule = document.getElementById('btn-schedule');
+            const daysLeftSpan = document.getElementById('days-left');
+
+            const monthNames = ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGU", "SEP", "OKT", "NOV", "DES"];
+            document.getElementById('next-month').textContent = monthNames[nextEligibleDate.getMonth()];
+            document.getElementById('next-date').textContent = nextEligibleDate.getDate();
+
+            badgeElement.classList.remove('hidden');
+            badgeElement.classList.add('flex');
+
+            if (daysLeft <= 0) {
+                badgeElement.classList.add('bg-green-100', 'text-green-700', 'border', 'border-green-200');
+                badgeElement.innerHTML = `<i class="fa-solid fa-circle-check"></i> Siap Donor`;
+                
+                document.getElementById('next-event-title').textContent = "Anda sudah bisa donor!";
+                daysLeftSpan.parentElement.innerHTML = `<span class="text-green-600 font-medium">Bisa dijadwalkan sekarang</span>`;
+                
+                btnSchedule.disabled = false;
+                btnSchedule.classList.add('bg-red-600', 'hover:bg-red-700', 'text-white');
+                btnSchedule.classList.remove('bg-slate-800');
+                btnSchedule.textContent = "Buat Janji Temu";
+                
+                btnSchedule.onclick = () => showToast('Membuka form pendaftaran...', 'success');
+            } else {
+                badgeElement.classList.add('bg-amber-100', 'text-amber-700', 'border', 'border-amber-200');
+                badgeElement.innerHTML = `<i class="fa-solid fa-clock"></i> Masa Pemulihan`;
+                
+                daysLeftSpan.textContent = daysLeft;
+                
+                btnSchedule.disabled = true;
+                btnSchedule.textContent = "Belum Dapat Membuat Janji";
+            }
+        }
+
+        function initHealthChart(historyData) {
+            const ctx = document.getElementById('healthChart').getContext('2d');
+            
+            // Validasi Chart element ada jika re-render
+            if(window.myHealthChart) { window.myHealthChart.destroy(); }
+
+            const validData = historyData.filter(d => d.systole && d.diastole).slice(0, 5).reverse();
+            
+            const labels = validData.map(d => {
+                const date = new Date(d.date);
+                return `${date.getDate()}/${date.getMonth()+1}/${date.getFullYear().toString().substr(-2)}`;
+            });
+            
+            const systoleData = validData.map(d => d.systole);
+            const diastoleData = validData.map(d => d.diastole);
+
+            Chart.defaults.font.family = "'Inter', sans-serif";
+            Chart.defaults.color = '#94a3b8';
+
+            window.myHealthChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Sistolik',
+                            data: systoleData,
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            borderWidth: 2,
+                            pointBackgroundColor: '#ef4444',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Diastolik',
+                            data: diastoleData,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointBackgroundColor: '#3b82f6',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: true, position: 'bottom', labels: { boxWidth: 12, usePointStyle: true, padding: 20 } },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleFont: { size: 13, family: "'Inter', sans-serif" },
+                            bodyFont: { size: 13, family: "'Inter', sans-serif" },
+                            padding: 10, cornerRadius: 8, displayColors: true
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: false, min: 60, max: 160, grid: { color: '#f1f5f9', drawBorder: false }, ticks: { stepSize: 20 } },
+                        x: { grid: { display: false, drawBorder: false } }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
